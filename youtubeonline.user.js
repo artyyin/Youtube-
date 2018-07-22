@@ -1,6 +1,7 @@
 // ==UserScript==
 // @name         Youtube直播在线人数记录
 // @namespace    http://tampermonkey.net/
+// @namespace    https://github.com/artyyin/YoutubeLiveOnline
 // @version      0.3
 // @description  绘制直播过程中的在线人数变化曲线，支持下载数据或图片
 // @author       yinbaoyong@gmail.com
