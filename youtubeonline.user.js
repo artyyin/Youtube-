@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Youtube直播在线人数记录
 // @namespace    http://tampermonkey.net/
-// @version      0.2
+// @version      0.3
 // @description  绘制直播过程中的在线人数变化曲线，支持下载数据或图片
-// @author       You
+// @author       yinbaoyong@gmail.com
 // @match        https://www.youtube.com/watch?v=*
 
 // @require      https://code.jquery.com/jquery-1.11.3.min.js
@@ -22,8 +22,11 @@
 (function() {
     //'use strict';
     var mainkey ="monkey-youtube-number-online-123456789"
+    var prefixofdatakey='artyyby-';
     var debug_switch = false;
     var onlinedata =new Array()
+    var hisdata;
+    var HistroyVisible=true;
     var chart;
     var aq_interval=5*1000;
     var n=0;
@@ -31,10 +34,35 @@
     var testdata = [
 		[new Date(2018,7,16,23,49,4).getTime(),7296]
     ];
+    var timer_2;
+
     //deleteAllKeys();
     //listAllKeys();
+
+    reset()
     setTimeout(delay_init, 5*1000);
 
+    function reset()
+    {
+        if(timer_2!=undefined)
+        {
+            clearTimeout(timer_2)
+            timer_2=undefined
+        }
+        if(chart!=undefined)
+        {
+            $("#online_chartwin").remove()
+            chart=undefined
+        }
+        onlinedata =new Array()
+        hisdata=undefined
+        HistroyVisible=true
+        n=0;
+        datakey=undefined
+        testdata = [
+            [new Date(2018,7,16,23,49,4).getTime(),7296]
+        ];
+    }
     function delay_init()
     {
         if($('button.ytp-live-badge.ytp-button').length==0)
@@ -61,27 +89,10 @@
         datakey = ceateAndAddKey();
         add_chart_winnode()
         showchartwin()
-        setTimeout(onTimer_2, aq_interval);
+        timer_2 = setTimeout(onTimer_2, aq_interval);
     }
 
-    function loadHistoryData()
-    {
-        var url = document.URL;
-        var alldatakey = GM_getValue(url)
-        var result=[];
-        for(var i in alldatakey)
-        {
-            var cur_data = GM_getValue(alldatakey[i]);
-            result = result.concat(cur_data);
-        }
-        return result;
-    }
-    function getAbsoluteUrl(url){
-        var a = document.createElement('A');
-        a.href = url; // 设置相对路径给Image, 此时会发送出请求
-        url = a.href; // 此时相对路径已经变成绝对路径
-        return url;
-    }
+
     function add_chart_winnode()
     {
         var windivnode =$('<div id="online_chartwin"></div>')
@@ -130,24 +141,45 @@
         addChart()
     }
 
+
     function addChart()
     {
-        var hisdata = loadHistoryData();
-        if(hisdata.length>0)
-        {
-            testdata = hisdata
-        }
-        console.log(testdata)
+        var dafaultMenuItem = Highcharts.getOptions().exporting.buttons.contextButton.menuItems;
+        var myMenuItem=[
+            {
+                separator: true
+            },
+            {
+                text:'隐藏历史数据',
+                onclick:hideHistoryData
+            },
+            {
+                text:'显示历史数据',
+                onclick:showHistoryData
+            },
+            {
+                text: '清除历史数据',
+                onclick:clearCurrentPageKey
+            },
+            {
+                text: '清除所有历史数据',
+                onclick:clearAppKeys//deleteAllKeys
+            }
+        ]
+        dafaultMenuItem.pop();
+        dafaultMenuItem.pop();
+        myMenuItem = dafaultMenuItem.concat(myMenuItem);
+        //console.log(myMenuItem);
 
         Highcharts.setOptions({
             global: {
                 useUTC: false
             }
         });
-        console.log('addChart')
+        //console.log('addChart')
         chart = Highcharts.chart('online_chartcontent', {
             chart: {
-                type: 'scatter',
+                //type: 'scatter',
                 plotBorderWidth: 1,
                 zoomType: 'x'
                    },
@@ -186,18 +218,34 @@
                 pointFormat : '<b>人数： {point.y:.0f} 人</b>'
             },
             plotOptions: {
-                scatter:{
+                line:{
                     lineWidth : 2,
-                    marker: {radius: 1}
+                    marker: {radius:3}
                 }
             },
+            exporting: {
+                buttons: {
+                    contextButton: {
+                        menuItems:myMenuItem
+                    }
+                }
+            },
+
             series: [{
                 name: '在线人数',
-                data: hisdata
+                type: 'line',
+                data: testdata
             }]
         });
-        console.log('addCHart() end')
-        if(hisdata.length==1)
+        //console.log('addCHart() end')
+        hisdata = loadHistoryData();
+        if(hisdata.length>0)
+        {
+            var tmp=[]
+            tmp = tmp.concat(hisdata)
+            chart.series[0].setData(tmp)
+        }
+        else
         {
             chart.series[0].removePoint(0);
         }
@@ -249,7 +297,7 @@
         //activeLastPointToolip(chart);
         onlinedata[idx] = point
         GM_setValue(datakey,onlinedata);
-        setTimeout(onTimer_2, aq_interval);
+        timer_2 = setTimeout(onTimer_2, aq_interval);
     }
     function activeLastPointToolip(chart) {
         var points = chart.series[0].points;
@@ -306,6 +354,7 @@
             GM_deleteValue(allkey[idx]);
         }
     }
+    
     function clearAppKeys()
     {
         var allurl = GM_getValue(mainkey,[]);
@@ -318,6 +367,23 @@
                GM_deleteValue(alldatakey[d])
             }
             GM_deleteValue(url)
+        }
+        GM_getValue(mainkey)
+        var allkey = GM_listValues();
+        for (var idx in allkey)
+        {
+            if(allkey[idx].indexOf(prefixofdatakey)==0)
+            {
+                GM_deleteValue(allkey[idx]);
+            }
+        }
+    }
+    function clearCurrentPageKey()
+    {
+        var alldatakey = GM_getValue(document.URL,[]);
+        for(var d in alldatakey)
+        {
+            GM_deleteValue(alldatakey[d])
         }
     }
     function ceateAndAddKey()
@@ -332,10 +398,62 @@
         var idx = url.indexOf('?v=')
 
         var timestr = new Date().toLocaleString();
-        var dkey = url.substring(idx+3)+timestr
+        var dkey = prefixofdatakey+url.substring(idx+3)+timestr
         var keyarray = GM_getValue(url,[])
         keyarray[keyarray.length]=dkey
         GM_setValue(url,keyarray)
         return dkey
+    }
+    function loadHistoryData()
+    {
+        var url = document.URL;
+        var alldatakey = GM_getValue(url)
+        var result=[];
+        for(var i in alldatakey)
+        {
+            var cur_data = GM_getValue(alldatakey[i]);
+            if(cur_data!=undefined)
+            {
+                result = result.concat(cur_data);
+            }
+        }
+        return result;
+    }
+    function hideHistoryData()
+    {
+        if(HistroyVisible)
+        {
+            //alert(HistroyVisible)
+            var data=[];
+            console.log('hideHistoryData 0:', data.length, hisdata.length, onlinedata.length)
+            data = data.concat(onlinedata)
+            console.log('hideHistoryData 1:', data.length, hisdata.length, onlinedata.length)
+            chart.series [0].setData(data)//,true,new Highcharts.AnimationOptions({duration:1000}));
+            console.log('hideHistoryData 2:', data.length, hisdata.length, onlinedata.length)
+            //console.log(data)
+            HistroyVisible = false;
+        }
+    }
+    function showHistoryData()
+    {
+        if(!HistroyVisible)
+        {
+            clearTimeout(timer_2)
+            var tmp=[];
+            //console.log('showHistoryData 0:',tmp.length, hisdata.length, onlinedata.length)
+            tmp = tmp.concat(hisdata)
+            tmp = tmp.concat(onlinedata)
+            //console.log('showHistoryData 1:',tmp.length, hisdata.length, onlinedata.length)
+            //chart.series[0].setData([ [new Date(1970,1,1).getTime(),7296] ],false)
+            chart.series[0].setData(tmp)
+            timer_2 = setTimeout(onTimer_2, aq_interval);
+            HistroyVisible = true;
+        }
+    }
+    function getAbsoluteUrl(url){
+        var a = document.createElement('A');
+        a.href = url; // 设置相对路径给Image, 此时会发送出请求
+        url = a.href; // 此时相对路径已经变成绝对路径
+        return url;
     }
 })();
